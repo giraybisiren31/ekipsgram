@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="tr"><head><meta charset="utf-8"><title>Ekipsgram</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>
+:root{--bg:#fff;--fg:#14171a;--mut:#6b7280;--card:#f3f4f6;--ac:#6d4aff;--bd:#e5e7eb;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#111318;--fg:#eceef2;--mut:#9aa1ae;--card:#1c1f27;--bd:#2a2e38}}
+html,body{height:100%;margin:0}
+body{display:flex;flex-direction:column;background:var(--bg);color:var(--fg);font:15px/1.4 system-ui,-apple-system,sans-serif}
+#app{flex:1;overflow-y:auto;padding:0 14px 12px;max-width:560px;width:100%;margin:0 auto;box-sizing:border-box}
+header{position:sticky;top:0;background:var(--bg);padding:12px 0;display:flex;gap:8px;align-items:center;font-size:18px;z-index:1}
+nav{display:none;border-top:1px solid var(--bd);background:var(--bg)}
+nav button{flex:1;background:none;border:0;padding:11px 0;font-size:13px;color:var(--mut)}
+nav button.on{color:var(--ac);font-weight:600}
+button{font:inherit;cursor:pointer;color:inherit}
+[data-a]{cursor:pointer}
+.b{background:var(--ac);color:#fff;border:0;border-radius:18px;padding:7px 14px}
+.b.o{background:none;color:var(--fg);border:1px solid var(--bd)}
+.lnk{background:none;border:0;padding:0;color:var(--ac)}
+label.b{display:inline-block;cursor:pointer}
+.card{background:var(--card);border-radius:12px;padding:10px;margin:10px 0;display:flex;flex-direction:column;gap:8px;align-items:flex-start}
+input,textarea{width:100%;box-sizing:border-box;border:1px solid var(--bd);border-radius:8px;padding:9px;background:var(--bg);color:var(--fg);font:inherit}
+textarea{min-height:60px}
+.row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--bd)}
+.g{flex:1;display:flex;flex-direction:column;min-width:0}
+small,.c{color:var(--mut)}.c{text-align:center;padding:24px 0}
+.av{width:38px;height:38px;flex:none;border-radius:50%;background:var(--card);display:grid;place-items:center;font-size:18px;overflow:hidden}
+.av img{width:100%;height:100%;object-fit:cover}
+.post{display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--bd)}.post p{margin:2px 0;white-space:pre-wrap;word-break:break-word}
+.ph{text-align:center;display:flex;flex-direction:column;align-items:center;gap:4px}.ph .av{width:64px;height:64px;font-size:30px}.ph h2{margin:4px 0 0}.ph .card{width:100%;box-sizing:border-box}
+.st{display:flex;gap:16px;color:var(--mut)}.acts{display:flex;gap:8px;margin-top:6px}
+.msgs{display:flex;flex-direction:column;gap:6px;padding-bottom:8px}
+.m{max-width:80%;padding:8px 12px;border-radius:16px;background:var(--card);align-self:flex-start;word-break:break-word}
+.m.me{align-self:flex-end;background:var(--ac);color:#fff}.m small{display:block}
+.send{position:sticky;bottom:0;background:var(--bg);display:flex;gap:8px;padding:8px 0}
+.err{color:#d33}h3{margin:16px 0 4px}
+</style></head><body>
+<div id="app"><p class="c">Yükleniyor…</p></div>
+<nav><button data-a="tab" data-i="feed">🏠<br>Akış</button><button data-a="tab" data-i="find">🔍<br>Keşfet</button><button data-a="tab" data-i="msg">💬<br>Mesajlar</button><button data-a="tab" data-i="me">🙂<br>Profil</button></nav>
+<script type="module">
+import {initializeApp} from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+import {getAuth,onAuthStateChanged,createUserWithEmailAndPassword,signInWithEmailAndPassword,signOut,sendPasswordResetEmail} from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
+import {getFirestore,doc,getDoc,updateDoc,addDoc,setDoc,deleteDoc,collection,query,where,orderBy,limit,onSnapshot,getDocs,getCountFromServer,writeBatch,arrayUnion,arrayRemove} from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+
+// 1) Firebase konsolundaki "firebaseConfig" değerlerini buraya yapıştır
+const FB={apiKey:'AIzaSyDHe3PvdYNpJ_OJQi5DyubH9rU65LrZxDg',authDomain:'ekipsgram.firebaseapp.com',projectId:'ekipsgram',appId:'1:786728331068:web:16d4bbf3610141fdb02039'};
+
+let au,db,uid=null,mine=null,P={},posts=[],grp=[],mygrp=[],dms=[],ms=[],found=[],cnt={},nt=[],cm=[],seen={},first={},tab='feed',view=null,err='',skip=0,pend=null,mode='in',ready=0,pf=0,lst=0,un0=null,unc=null;
+const $=s=>document.querySelector(s),V=id=>{const e=document.getElementById(id);return e?e.value.trim():''};
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>'&#'+c.charCodeAt(0)+';');
+const ago=t=>{const m=(Date.now()-t)/6e4;return m<1?'şimdi':m<60?~~m+' dk':m<1440?~~(m/60)+' sa':~~(m/1440)+' g'};
+const okImg=a=>typeof a==='string'&&a.length<60000&&/^data:image\/jpeg;base64,[A-Za-z0-9+\/=]+$/.test(a);
+const av=u=>`<span class="av">${u&&okImg(u.a)?`<img src="${u.a}" alt="">`:esc(((u&&u.n)||'?').slice(0,1).toUpperCase())}</span>`;
+const hd=(t,b)=>`<header>${b?'<button class="b o" data-a="back">‹</button>':''}<b>${t}</b></header>`;
+const pr=id=>{if(id===uid&&mine)return mine;if(!(id in P)){P[id]=null;getDoc(doc(db,'users',id)).then(s=>{P[id]=s.exists()?s.data():{n:'?',h:'?'};render()})}return P[id]||{n:'…',h:'…'}};
+const pair=o=>[uid,o].sort().join('_');
+const F=()=>(mine&&mine.f)||[];
+try{seen=JSON.parse(localStorage.getItem('seen')||'{}')}catch(e){}
+const mark=k=>{seen[k]=Date.now();try{localStorage.setItem('seen',JSON.stringify(seen))}catch(e){}};
+const unrD=d=>d.s&&d.s!==uid&&d.t>(seen[d.id]||0);
+const unread=()=>dms.filter(unrD).length+nt.filter(n=>n.t>(seen['n_'+uid]||0)).length;
+const ping=(ti,bo)=>{try{if('Notification' in window&&Notification.permission==='granted')new Notification(ti,{body:bo})}catch(e){}};
+const poke=(k,rows,f)=>{if(!first[k]){first[k]=1;rows.forEach(r=>first[k+r.id]=r.t);return}rows.forEach(r=>{if(r.t>(first[k+r.id]||0)){first[k+r.id]=r.t;f(r)}})};
+const notifHtml=()=>(('Notification' in window&&Notification.permission==='default')?'<div class="card"><button class="b" data-a="perm">🔔 Bildirimleri aç</button></div>':'')+(nt.length?'<h3>Bildirimler</h3>'+nt.slice(0,10).map(n=>`<div class="row" data-a="pv" data-i="${esc(n.p)}"><div class="g"><b>${esc(n.bn)}</b><small>${n.k==='l'?'gönderini beğendi ❤️':'yorum yaptı: '+esc(n.x)}</small></div><small>${ago(n.t)}</small></div>`).join('')+'<h3>Sohbetler</h3>':'');
+const msg=x=>({'auth/invalid-credential':'E-posta veya şifre hatalı.','auth/email-already-in-use':'Bu e-posta zaten kayıtlı.','auth/weak-password':'Şifre en az 6 karakter olmalı.','auth/invalid-email':'Geçersiz e-posta.','permission-denied':'İşlem reddedildi (kullanıcı adı alınmış olabilir).'}[x.code])||'Bir hata oluştu: '+(x.code||x.message);
+const followBtn=i=>{const f=F().includes(i);return `<button class="b ${f?'o':''}" data-a="fol" data-i="${esc(i)}">${f?'Takipte':'Takip et'}</button>`};
+const cnt0=id=>getCountFromServer(query(collection(db,'users'),where('f','array-contains',id))).then(s=>{cnt[id]=s.data().count;render()}).catch(()=>{});
+
+function authUI(){return `${hd(mode==='in'?'Giriş yap':'Kayıt ol')}<div class="card"><input id="em" data-k type="email" placeholder="E-posta"><input id="pw" data-k type="password" placeholder="Şifre (en az 6 karakter)"><button class="b" data-a="auth">${mode==='in'?'Giriş yap':'Hesap oluştur'}</button><button class="lnk" data-a="mode">${mode==='in'?'Hesabın yok mu? Kayıt ol':'Zaten hesabın var mı? Giriş yap'}</button>${mode==='in'?'<button class="lnk" data-a="reset">Şifremi unuttum</button>':''}</div>`}
+function setup(){return `${hd('Profilini oluştur')}<div class="card">${av({a:pend,n:'?'})}<label class="b o">📷 Fotoğraf seç<input id="sf" type="file" accept="image/*" hidden></label><input id="sh" data-k placeholder="kullanıcı adı (a-z, 0-9, _)"><input id="sn" data-k placeholder="Görünen ad"><input id="sb" data-k placeholder="Biyografi"><button class="b" data-a="prof">Profili oluştur</button><button class="lnk" data-a="out">Çıkış yap</button></div>`}
+
+function postHtml(p){const u=pr(p.u);return `<div class="post">${av(u)}<div><b data-a="open" data-i="${esc(p.u)}">${esc(u.n)}</b> <small>@${esc(u.h)} · ${ago(p.t)}</small><p>${esc(p.x)}</p><small><span data-a="like" data-i="${esc(p.id)}">${(p.l||[]).includes(uid)?'❤️':'🤍'} ${(p.l||[]).length}</span> · <span data-a="pv" data-i="${esc(p.id)}">💬 Yorum</span> · ${p.u===uid?`<span data-a="del" data-i="${esc(p.id)}">Sil</span>`:`<span data-a="rep" data-i="${esc(p.id)}">Şikâyet et</span>`}</small></div></div>`}
+
+function feed(){const ids=[uid,...F()];
+  return '<div class="card"><textarea id="px" data-k placeholder="Ne düşünüyorsun?"></textarea><button class="b" data-a="post">Paylaş</button></div>'+(posts.filter(p=>ids.includes(p.u)).map(postHtml).join('')||'<p class="c">Henüz gönderi yok. Keşfet\'ten birilerini takip et ya da ilk paylaşımı yap!</p>')}
+
+function find(){const gs=[...new Map([...grp,...mygrp].map(g=>[g.id,g])).values()];
+  return '<div class="card"><input id="q" data-k placeholder="Kullanıcı adı ara"><button class="b" data-a="srch">Ara</button></div>'+
+  found.filter(x=>x.id!==uid).map(x=>`<div class="row">${av(x)}<div class="g" data-a="open" data-i="${esc(x.id)}"><b>${esc(x.n)}</b><small>@${esc(x.h)}</small></div>${followBtn(x.id)}</div>`).join('')+
+  '<h3>Gruplar</h3>'+gs.map(g=>{const j=g.m.includes(uid);return `<div class="row"><span class="av">👥</span><div class="g"><b>${esc(g.n)}</b><small>${g.m.length} üye</small></div><button class="b ${j?'o':''}" data-a="join" data-i="${esc(g.id)}">${j?'Ayrıl':'Katıl'}</button></div>`}).join('')+
+  '<div class="card"><input id="gn" data-k placeholder="Yeni grup adı"><button class="b" data-a="mkg">Grup kur</button></div><h3>Son gönderiler</h3>'+(posts.slice(0,20).map(postHtml).join('')||'<p class="c">Henüz gönderi yok.</p>');
+}
+
+function msgs(){
+  const r=[...dms].sort((a,b)=>b.t-a.t).map(d=>{const o=d.p.find(x=>x!==uid),u=pr(o);return `<div class="row" data-a="dm" data-i="${esc(o)}">${av(u)}<div class="g"><b>${esc(u.n)}${unrD(d)?' 🔴':''}</b><small>${esc(d.l)}</small></div></div>`}).join('')+
+  mygrp.map(g=>`<div class="row" data-a="gc" data-i="${esc(g.id)}"><span class="av">👥</span><div class="g"><b>${esc(g.n)}</b><small>Grup</small></div></div>`).join('');
+  return notifHtml()+(r||'<p class="c">Sohbet yok. Keşfet\'ten birini bul, profiline gir ve "Mesaj" de, ya da bir gruba katıl.</p>');
+}
+
+function postView(){const p=posts.find(x=>x.id===view.id);
+  if(!p)return hd('Gönderi',1)+'<p class="c">Gönderi bulunamadı.</p>';
+  return hd('Gönderi',1)+postHtml(p)+'<h3>Yorumlar</h3>'+(cm.map(c=>{const u=pr(c.u);return `<div class="post">${av(u)}<div><b>${esc(u.n)}</b> <small>${ago(c.t)}</small><p>${esc(c.x)}</p></div></div>`}).join('')||'<p class="c">Henüz yorum yok.</p>')+'<div class="send"><input id="cx" data-k placeholder="Yorum yaz…"><button class="b" data-a="csend">Gönder</button></div>';
+}
+function chat(){const v=view;let t;
+  if(v.k==='dm')t=pr(v.id).n;else{const g=[...grp,...mygrp].find(x=>x.id===v.id);t=g?g.n:'Grup'}
+  return hd(esc(t),1)+'<div class="msgs">'+ms.map(m=>`<div class="m ${m.u===uid?'me':''}">${v.k==='g'&&m.u!==uid?`<small>${esc(pr(m.u).n)}</small>`:''}${esc(m.x)}</div>`).join('')+'</div><div class="send"><input id="mx" data-k placeholder="Mesaj yaz…"><button class="b" data-a="send">Gönder</button></div>';
+}
+
+function prof(id){const u=pr(id),me=id===uid;
+  return `<div class="ph">${av(u)}<h2>${esc(u.n)}</h2><small>@${esc(u.h)}</small><p>${esc(u.b)}</p><div class="st"><span><b>${cnt[id]==null?'–':cnt[id]}</b> takipçi</span><span><b>${(u.f||[]).length}</b> takip</span></div>`+
+  (me?`<div class="card"><input id="en" data-k value="${esc(u.n)}"><input id="eb" data-k value="${esc(u.b)}" placeholder="Biyografi"><label class="b o">📷 Fotoğraf seç<input id="ef" type="file" accept="image/*" hidden></label>${okImg(u.a)?'<button class="b o" data-a="rmph">Fotoğrafı kaldır</button>':''}<button class="b" data-a="edit">Profili kaydet</button><button class="b o" data-a="out">Çıkış yap</button></div>`:`<div class="acts">${followBtn(id)}<button class="b o" data-a="dm" data-i="${esc(id)}">Mesaj</button></div>`)+
+  '</div><h3>Gönderiler</h3>'+(posts.filter(p=>p.u===id).map(postHtml).join('')||'<p class="c">Gönderi yok.</p>');
+}
+
+function render(){
+  if(!ready)return;
+  const k={};if(!skip)document.querySelectorAll('[data-k]').forEach(e=>k[e.id]=e.value);skip=0;
+  const af=document.activeElement&&document.activeElement.id;
+  let h;
+  if(!uid)h=authUI();
+  else if(!pf)h='<p class="c">Yükleniyor…</p>';
+  else if(!mine)h=setup();
+  else if(view&&view.k==='u')h=hd('Profil',1)+prof(view.id);
+  else if(view&&view.k==='p')h=postView();
+  else if(view)h=chat();
+  else h={feed:()=>hd('Akış')+feed(),find:()=>hd('Keşfet')+find(),msg:()=>hd('Mesajlar')+msgs(),me:()=>hd('Profilim')+prof(uid)}[tab]();
+  $('#app').innerHTML=h+(err?`<p class="err">${esc(err)}</p>`:'');
+  for(const id in k){const e=document.getElementById(id);if(e)e.value=k[id]}
+  if(af){const e=document.getElementById(af);if(e)e.focus()}
+  if(mine&&!document.hidden){if(tab==='msg'&&!view)mark('n_'+uid);if(view&&view.k==='dm')mark(pair(view.id))}
+  $('nav').style.display=mine?'flex':'none';
+  {const u=unread();document.title=(u?'('+u+') ':'')+'Ekipsgram';const nb=$('nav button[data-i=msg]');if(nb)nb.innerHTML='💬'+(u?' 🔴':'')+'<br>Mesajlar'}
+  document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.i===tab&&!view));
+  if($('.msgs'))$('#app').scrollTop=1e9;
+}
+
+async function search(q){q=q.toLowerCase();const c=collection(db,'users');
+  const s=await getDocs(q?query(c,where('h','>=',q),where('h','<=',q+'\uf8ff'),limit(20)):query(c,limit(20)));
+  found=s.docs.map(d=>({id:d.id,...d.data()}));found.forEach(x=>P[x.id]=x);render();
+}
+function listen(){
+  const c=n=>collection(db,n),sn=(q,f)=>onSnapshot(q,s=>{f(s.docs.map(d=>({id:d.id,...d.data()})));render()},x=>{err=msg(x);render()});
+  sn(query(c('posts'),orderBy('t','desc'),limit(60)),r=>{posts=r});
+  sn(query(c('groups'),limit(30)),r=>{grp=r});
+  sn(query(c('groups'),where('m','array-contains',uid)),r=>{mygrp=r});
+  sn(query(c('dms'),where('p','array-contains',uid)),r=>{dms=r;poke('d',r,d=>{if(d.s!==uid&&document.hidden)ping(d.sn||'Yeni mesaj',d.l)})});
+  sn(query(collection(db,'users',uid,'n'),orderBy('t','desc'),limit(30)),r=>{nt=r;poke('n',r,n=>{if(n.by!==uid&&document.hidden)ping('Ekipsgram',n.bn+(n.k==='l'?' gönderini beğendi':' yorum yaptı: '+n.x))})});
+  search('');
+}
+function openChat(v){view=v;ms=[];skip=1;if(unc)unc();
+  const c=v.k==='dm'?collection(db,'dms',pair(v.id),'m'):collection(db,'groups',v.id,'m');
+  unc=onSnapshot(query(c,orderBy('t'),limit(200)),s=>{ms=s.docs.map(d=>d.data());render()},()=>{err='Mesajlar yüklenemedi.';render()});render();
+}
+const stop=()=>{if(unc){unc();unc=null}};
+function openPost(id){stop();view={k:'p',id};cm=[];skip=1;
+  unc=onSnapshot(query(collection(db,'posts',id,'c'),orderBy('t'),limit(100)),s=>{cm=s.docs.map(d=>({id:d.id,...d.data()}));render()},()=>{err='Yorumlar yüklenemedi.';render()});render();
+}
+
+document.addEventListener('click',async e=>{
+  const el=e.target.closest('[data-a]');if(!el)return;
+  const a=el.dataset.a,i=el.dataset.i;err='';
+  try{
+    if(a==='tab'){tab=i;view=null;skip=1;stop();if(i==='me')cnt0(uid)}
+    else if(a==='back'){view=null;skip=1;stop()}
+    else if(a==='open'){view={k:'u',id:i};skip=1;cnt0(i)}
+    else if(a==='pv')return openPost(i);
+    else if(a==='perm'){await Notification.requestPermission();skip=1}
+    else if(a==='like'){const p=posts.find(x=>x.id===i),has=(p.l||[]).includes(uid);await updateDoc(doc(db,'posts',i),{l:has?arrayRemove(uid):arrayUnion(uid)});if(!has&&p.u!==uid)await setDoc(doc(db,'users',p.u,'n','l_'+i+'_'+uid),{by:uid,bn:mine.n,k:'l',p:i,t:Date.now()})}
+    else if(a==='csend'){const x=V('cx').slice(0,280);if(!x)return;$('#cx').value='';const p=posts.find(y=>y.id===view.id);await addDoc(collection(db,'posts',view.id,'c'),{u:uid,x,t:Date.now()});if(p&&p.u!==uid)await addDoc(collection(db,'users',p.u,'n'),{by:uid,bn:mine.n,k:'c',p:p.id,x:x.slice(0,60),t:Date.now()})}
+    else if(a==='dm')return openChat({k:'dm',id:i});
+    else if(a==='gc')return openChat({k:'g',id:i});
+    else if(a==='mode'){mode=mode==='in'?'up':'in';skip=1}
+    else if(a==='auth'){await(mode==='in'?signInWithEmailAndPassword:createUserWithEmailAndPassword)(au,V('em'),$('#pw').value);return}
+    else if(a==='reset'){if(!V('em'))err='Önce e-postanı yaz.';else{await sendPasswordResetEmail(au,V('em'));alert('Şifre sıfırlama e-postası gönderildi.')}}
+    else if(a==='out'){await signOut(au);location.reload();return}
+    else if(a==='prof'){
+      const h=V('sh').toLowerCase(),n=V('sn');
+      if(!/^[a-z0-9_]{3,15}$/.test(h))err='Kullanıcı adı 3-15 karakter olmalı: a-z, 0-9, _';
+      else if(!n)err='Bir görünen ad yaz.';
+      else{const b=writeBatch(db);b.set(doc(db,'handles',h),{u:uid});b.set(doc(db,'users',uid),{h,n:n.slice(0,30),b:V('sb').slice(0,120),a:pend||'',f:[]});await b.commit();pend=null}
+    }
+    else if(a==='edit'){skip=1;await updateDoc(doc(db,'users',uid),{n:(V('en')||mine.n).slice(0,30),b:V('eb').slice(0,120)})}
+    else if(a==='rmph'){skip=1;await updateDoc(doc(db,'users',uid),{a:''})}
+    else if(a==='fol')await updateDoc(doc(db,'users',uid),{f:F().includes(i)?arrayRemove(i):arrayUnion(i)});
+    else if(a==='srch')return search(V('q'));
+    else if(a==='join'){const g=[...grp,...mygrp].find(x=>x.id===i);await updateDoc(doc(db,'groups',i),{m:g.m.includes(uid)?arrayRemove(uid):arrayUnion(uid)})}
+    else if(a==='mkg'){const n=V('gn');if(!n)return;$('#gn').value='';await addDoc(collection(db,'groups'),{n:n.slice(0,30),o:uid,m:[uid],t:Date.now()})}
+    else if(a==='post'){const x=V('px');if(!x)return;$('#px').value='';await addDoc(collection(db,'posts'),{u:uid,x:x.slice(0,280),t:Date.now()})}
+    else if(a==='del')await deleteDoc(doc(db,'posts',i));
+    else if(a==='rep'){await addDoc(collection(db,'reports'),{p:i,by:uid,t:Date.now()});alert('Şikâyetin alındı, teşekkürler.')}
+    else if(a==='send'){
+      const x=V('mx').slice(0,500);if(!x)return;$('#mx').value='';const t=Date.now();
+      if(view.k==='dm'){await setDoc(doc(db,'dms',pair(view.id)),{p:[uid,view.id].sort(),l:x.slice(0,60),t,s:uid,sn:mine.n},{merge:true});await addDoc(collection(db,'dms',pair(view.id),'m'),{u:uid,x,t})}
+      else await addDoc(collection(db,'groups',view.id,'m'),{u:uid,x,t});
+    }
+  }catch(x){err=msg(x)}
+  render();
+});
+document.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.id==='mx')$('[data-a=send]').click()});
+
+const shrink=f=>new Promise((ok,no)=>{const r=new FileReader();r.onerror=no;r.onload=()=>{const im=new Image();im.onerror=no;im.onload=()=>{const s=Math.min(im.width,im.height),c=document.createElement('canvas');c.width=c.height=160;c.getContext('2d').drawImage(im,(im.width-s)/2,(im.height-s)/2,s,s,0,0,160,160);ok(c.toDataURL('image/jpeg',.75))};im.src=r.result};r.readAsDataURL(f)});
+document.addEventListener('change',async e=>{
+  const t=e.target,f=t.files&&t.files[0];if(!f||(t.id!=='ef'&&t.id!=='sf'))return;
+  try{const a=await shrink(f);err='';if(t.id==='sf'){pend=a;render()}else{skip=1;await updateDoc(doc(db,'users',uid),{a})}}
+  catch(x){err='Fotoğraf yüklenemedi, başka bir tane dene.';render()}
+});
+
+ready=1;
+if(FB.apiKey==='BURAYA'){$('#app').innerHTML='<p class="c">Önce dosyanın başındaki FB ayarlarına Firebase bilgilerini yapıştır.</p>'}
+else{
+  const app=initializeApp(FB);au=getAuth(app);db=getFirestore(app);
+  onAuthStateChanged(au,u=>{
+    uid=u?u.uid:null;mine=null;pf=0;if(un0){un0();un0=null}
+    if(u)un0=onSnapshot(doc(db,'users',uid),s=>{mine=s.exists()?s.data():null;P[uid]=mine;pf=1;if(mine&&!lst){lst=1;listen()}render()},x=>{err=msg(x);pf=1;render()});
+    else render();
+  });
+}
+</script></body></html>
